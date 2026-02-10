@@ -1,0 +1,873 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: 47b5152d437b4cae851a91ca51ec26e9
+      name: Templates/CDP
+  host_groups:
+    - uuid: cec2f5a58bc14b6c8c15f68efbb55fe6
+      name: CDP
+  templates:
+    - uuid: 514aa2919ab44267a5606a2d7a024856
+      template: 'Template MDC - CDP'
+      name: 'Template MDC - CDP'
+      groups:
+        - name: Templates/CDP
+      items:
+        - uuid: 549cb83411f045c6af982c7d93876f55
+          name: Ping
+          type: SIMPLE
+          key: icmpping
+          valuemap:
+            name: rack.icmp.status
+          tags:
+            - tag: component
+              value: rack
+          triggers:
+            - uuid: 3255b73488754e389fd1ae52940e2566
+              expression: 'max(/Template MDC - CDP/icmpping,#5)=0'
+              name: 'Unavailable by ICMP ping'
+              priority: HIGH
+        - uuid: 4eca6500807b4631928cc827266af138
+          name: 'Proxy last seen in seconds'
+          type: DEPENDENT
+          key: proxy.last.seen
+          value_type: FLOAT
+          valuemap:
+            name: proxy.last.seen
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.name=="{$PROXY_NAME}")].last_seen.first()'
+          master_item:
+            key: 'zabbix[proxy,discovery]'
+          tags:
+            - tag: component
+              value: proxy
+        - uuid: e140652988af4f258b68abfdc9c4d70d
+          name: 'Rack devices walk'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[.1.3.6.1.2.1.1.5.0,1.3.6.1.4.1.54612.1.1.1]'
+          key: rack.devices.walk
+          delay: 1h
+          history: '0'
+          value_type: TEXT
+          tags:
+            - tag: component
+              value: raw
+        - uuid: 776c12ddf96344d48eaf367ef2730426
+          name: 'Door status'
+          type: DEPENDENT
+          key: rack.door.status
+          valuemap:
+            name: rack.door.status
+          preprocessing:
+            - type: SNMP_WALK_VALUE
+              parameters:
+                - .1.3.6.1.4.1.54612.1.1.1.14.0
+                - '0'
+            - type: REGEX
+              parameters:
+                - '(\d+(?:\.\d+)?)'
+                - \1
+          master_item:
+            key: rack.walk
+          tags:
+            - tag: component
+              value: rack
+          triggers:
+            - uuid: 8523f11074794db5a75029e36322dff5
+              expression: 'last(/Template MDC - CDP/rack.door.status)=1'
+              name: 'Door opened'
+              priority: WARNING
+              manual_close: 'YES'
+        - uuid: be4d0b70d7c0495f8003bfb53bb288df
+          name: 'Fire extinguisher operation'
+          type: DEPENDENT
+          key: rack.fire.extinguisher.operation
+          valuemap:
+            name: rack.extinguisher.operation
+          preprocessing:
+            - type: SNMP_WALK_VALUE
+              parameters:
+                - .1.3.6.1.4.1.54612.1.1.1.16.0
+                - '0'
+            - type: REGEX
+              parameters:
+                - '(\d+(?:\.\d+)?)'
+                - \1
+          master_item:
+            key: rack.walk
+          tags:
+            - tag: component
+              value: rack
+          triggers:
+            - uuid: b5c0310c0a2647a08de6c177470e6c2e
+              expression: 'last(/Template MDC - CDP/rack.fire.extinguisher.operation)=1'
+              name: 'Fire extinguisher operation'
+              priority: WARNING
+        - uuid: 20361ba660d9408ea9f704a7b3c07630
+          name: 'Fire extinguisher status'
+          type: DEPENDENT
+          key: rack.fire.extinguisher.status
+          valuemap:
+            name: rack.extinguisher
+          preprocessing:
+            - type: SNMP_WALK_VALUE
+              parameters:
+                - .1.3.6.1.4.1.54612.1.1.1.15.0
+                - '0'
+            - type: REGEX
+              parameters:
+                - '(\d+(?:\.\d+)?)'
+                - \1
+          master_item:
+            key: rack.walk
+          tags:
+            - tag: component
+              value: rack
+          triggers:
+            - uuid: 4767522534f14812b81d1a31d0c359b9
+              expression: 'last(/Template MDC - CDP/rack.fire.extinguisher.status)=1'
+              name: 'Fire extinguisher status'
+              priority: WARNING
+        - uuid: fdb5b500ce2a4023a749cc05c785b5d2
+          name: 'High temperature status'
+          type: DEPENDENT
+          key: rack.high.temperature.status
+          valuemap:
+            name: rack.high.temperature.status
+          preprocessing:
+            - type: SNMP_WALK_VALUE
+              parameters:
+                - .1.3.6.1.4.1.54612.1.1.1.12.0
+                - '0'
+            - type: REGEX
+              parameters:
+                - '(\d+(?:\.\d+)?)'
+                - \1
+          master_item:
+            key: rack.walk
+          tags:
+            - tag: component
+              value: rack
+          triggers:
+            - uuid: 39540a053b4f41aeb032599d69779f5a
+              expression: 'last(/Template MDC - CDP/rack.high.temperature.status)=1'
+              name: 'High temperature'
+              priority: HIGH
+        - uuid: 0ac53fa826b74020be2e9347d20e544e
+          name: Humidity
+          type: DEPENDENT
+          key: rack.humidity
+          value_type: FLOAT
+          units: '%'
+          preprocessing:
+            - type: SNMP_WALK_VALUE
+              parameters:
+                - .1.3.6.1.4.1.54612.1.1.1.22.0
+                - '0'
+            - type: REGEX
+              parameters:
+                - '(\d+(?:\.\d+)?)'
+                - \1
+          master_item:
+            key: rack.walk
+          tags:
+            - tag: component
+              value: rack
+        - uuid: 2d4f1993621c444f8e35b9c214948e12
+          name: 'Main communication'
+          type: DEPENDENT
+          key: rack.main.communication
+          valuemap:
+            name: rack.main
+          preprocessing:
+            - type: SNMP_WALK_VALUE
+              parameters:
+                - .1.3.6.1.4.1.54612.1.1.1.1.0
+                - '0'
+            - type: REGEX
+              parameters:
+                - '(\d+(?:\.\d+)?)'
+                - \1
+          master_item:
+            key: rack.walk
+          tags:
+            - tag: component
+              value: rack
+        - uuid: 9f03adf5744b4e269cef9bcbc1e0d521
+          name: 'Smoke detector status'
+          type: DEPENDENT
+          key: rack.smoke.detector.status
+          valuemap:
+            name: rack.smoke
+          preprocessing:
+            - type: SNMP_WALK_VALUE
+              parameters:
+                - .1.3.6.1.4.1.54612.1.1.1.10.0
+                - '0'
+            - type: REGEX
+              parameters:
+                - '(\d+(?:\.\d+)?)'
+                - \1
+          master_item:
+            key: rack.walk
+          tags:
+            - tag: component
+              value: rack
+          triggers:
+            - uuid: 8256436aec7a4ff0a17d56f1536f0ac3
+              expression: 'last(/Template MDC - CDP/rack.smoke.detector.status)=1'
+              name: 'Smoke detected'
+              priority: WARNING
+        - uuid: 692c28fa64e24901832e54cf7dd469ee
+          name: Temperature
+          type: DEPENDENT
+          key: rack.temperature
+          value_type: FLOAT
+          units: °C
+          preprocessing:
+            - type: SNMP_WALK_VALUE
+              parameters:
+                - .1.3.6.1.4.1.54612.1.1.1.21.0
+                - '0'
+            - type: REGEX
+              parameters:
+                - '(\d+(?:\.\d+)?)'
+                - \1
+          master_item:
+            key: rack.walk
+          tags:
+            - tag: component
+              value: rack
+        - uuid: a271b457ca6c42b69e9bf9027579dc82
+          name: 'Temperature sensor status'
+          type: DEPENDENT
+          key: rack.temperature.sensor.status
+          valuemap:
+            name: rack.temperature.sensor
+          preprocessing:
+            - type: SNMP_WALK_VALUE
+              parameters:
+                - .1.3.6.1.4.1.54612.1.1.1.13.0
+                - '0'
+            - type: REGEX
+              parameters:
+                - '(\d+(?:\.\d+)?)'
+                - \1
+          master_item:
+            key: rack.walk
+          tags:
+            - tag: component
+              value: rack
+          triggers:
+            - uuid: ff59ddf451564760ac86a8936a678264
+              expression: 'last(/Template MDC - CDP/rack.temperature.sensor.status)=1'
+              name: 'Temperature sensor failure'
+              priority: WARNING
+        - uuid: e2c19ece67b940baab32fb848e1f5dc9
+          name: 'Rack walk'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.4.1.54612.1.1.1]'
+          key: rack.walk
+          history: '0'
+          value_type: TEXT
+          tags:
+            - tag: component
+              value: raw
+        - uuid: ed6c010f7cf842ee8690454e23810c75
+          name: 'Water detector status'
+          type: DEPENDENT
+          key: rack.water.detector.status
+          valuemap:
+            name: rack.water
+          preprocessing:
+            - type: SNMP_WALK_VALUE
+              parameters:
+                - .1.3.6.1.4.1.54612.1.1.1.11.0
+                - '0'
+            - type: REGEX
+              parameters:
+                - '(\d+(?:\.\d+)?)'
+                - \1
+          master_item:
+            key: rack.walk
+          tags:
+            - tag: component
+              value: rack
+          triggers:
+            - uuid: 3ae107818a3c4c4390e9c0a88e5f11ba
+              expression: 'last(/Template MDC - CDP/rack.water.detector.status)=1'
+              name: 'Water detected'
+              priority: WARNING
+        - uuid: 3d9f9ed3b2a445f2a8cb843248548d08
+          name: 'SNMP agent availability'
+          type: INTERNAL
+          key: 'zabbix[host,snmp,available]'
+          valuemap:
+            name: rack.snmp.status
+          tags:
+            - tag: component
+              value: rack
+          triggers:
+            - uuid: 348c169dc4524f949f08c20182ba0cbd
+              expression: 'last(/Template MDC - CDP/zabbix[host,snmp,available],#5)=0'
+              name: 'No SNMP data collection'
+              priority: HIGH
+        - uuid: 9d1110ef76f34732ac4f2a0dd765ffde
+          name: 'Proxy walk'
+          type: INTERNAL
+          key: 'zabbix[proxy,discovery]'
+          history: '0'
+          value_type: TEXT
+          tags:
+            - tag: component
+              value: proxy
+      discovery_rules:
+        - uuid: ed03a5e66ca34eb69eaf48b783fde5de
+          name: 'Rack devices discovery'
+          type: DEPENDENT
+          key: rack.devices.discovery
+          filter:
+            conditions:
+              - macro: '{#DEVICE_STATUS}'
+                value: '0'
+          lifetime_type: DELETE_NEVER
+          enabled_lifetime_type: DISABLE_AFTER
+          enabled_lifetime: 24h
+          host_prototypes:
+            - uuid: 2b640d84708c4a1d9565c5dd270dba82
+              host: '{#DEVICE_GROUP} - {#DEVICE}'
+              name: '{#DEVICE_GROUP} - {#DEVICE}'
+              inventory_mode: MANUAL
+              group_links:
+                - group:
+                    name: CDP
+              group_prototypes:
+                - name: 'MDC - {#DEVICE_GROUP}'
+                - name: '{#DEVICE_TYPE}'
+              macros:
+                - macro: '{$DEVICE_ID}'
+                  value: '{#DEVICE_ID}'
+                - macro: '{$DEVICE_OID}'
+                  value: '{#DEVICE_OID}'
+          master_item:
+            key: rack.devices.walk
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  if (!value || typeof value !== "string") return JSON.stringify([]);
+                  
+                  var data = [], seen = {};
+                  var lines = value.split('\n');
+                  
+                  var regexGroup = /\.1\.3\.6\.1\.2\.1\.1\.5\.0\s+=\s+STRING:\s+"([^"]+)"/;
+                  var regexDevice = /\.1\.3\.6\.1\.4\.1\.54612\.1\.1\.1\.(\d+)\.0\s+=\s+STRING:\s+"(\d+)\s*;\s*stComm(UPS|AC)(\d)"/;
+                  
+                  var deviceGroup = null;
+                  
+                  // Generador de código aleatorio tipo "8KX3"
+                  function generateRandomCode() {
+                      return (Math.random().toString(36) + "0000").substring(2, 6).toUpperCase();
+                  }
+                  
+                  // Recorre las líneas una sola vez para detectar grupo
+                  for (var i = 0; i < lines.length; i++) {
+                      var gMatch = regexGroup.exec(lines[i]);
+                      if (gMatch && gMatch[1].toLowerCase() !== "raspberrypi") {
+                          deviceGroup = gMatch[1];
+                          break;
+                      }
+                  }
+                  
+                  // Define el grupo final una sola vez
+                  var finalGroup = deviceGroup || generateRandomCode();
+                  
+                  // Recorre para detectar dispositivos
+                  for (var i = 0; i < lines.length; i++) {
+                      var match = regexDevice.exec(lines[i]);
+                      if (!match) continue;
+                  
+                      var oidIndex = match[1];
+                      var state = match[2];
+                      var type = match[3];
+                      var id = match[4];
+                      var deviceName = type + id;
+                  
+                      if (!seen[deviceName]) {
+                          seen[deviceName] = true;
+                  
+                          data.push({
+                              "{#DEVICE}": deviceName,
+                              "{#DEVICE_ID}": id,
+                              "{#DEVICE_OID}": ".1.3.6.1.4.1.54612.1.1.1." + oidIndex,
+                              "{#DEVICE_GROUP}": finalGroup,
+                              "{#DEVICE_TYPE}": type === "UPS" ? "Power supply" : "Air conditioner",
+                              "{#DEVICE_STATUS}": state
+                          });
+                      }
+                  }
+                  
+                  return JSON.stringify(data);
+          overrides:
+            - name: 'AC override'
+              step: '1'
+              filter:
+                evaltype: OR
+                conditions:
+                  - macro: '{#DEVICE}'
+                    value: '^AC[1-9]$'
+              operations:
+                - operationobject: HOST_PROTOTYPE
+                  operator: LIKE
+                  value: AC
+                  tags:
+                    - tag: device
+                      value: ac
+                  templates:
+                    - name: 'Template AC - CDP'
+                  inventory_mode: MANUAL
+            - name: 'UPS override'
+              step: '2'
+              stop: STOP
+              filter:
+                conditions:
+                  - macro: '{#DEVICE}'
+                    value: '^UPS[1-9]$'
+              operations:
+                - operationobject: HOST_PROTOTYPE
+                  operator: LIKE
+                  value: UPS
+                  tags:
+                    - tag: device
+                      value: ups
+                  templates:
+                    - name: 'Template UPS - CDP'
+                  inventory_mode: MANUAL
+      macros:
+        - macro: '{$PROXY_NAME}'
+        - macro: '{$ZABBIX_PROXY_LAST_SEEN.MAX}'
+          value: '540'
+      dashboards:
+        - uuid: 8c184bf5276f49a1bcf05a52a3d9a46b
+          name: Overview
+          display_period: '60'
+          auto_start: 'NO'
+          pages:
+            - widgets:
+                - type: item
+                  name: 'Door status'
+                  width: '8'
+                  fields:
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: INTEGER
+                      name: decimal_size
+                      value: '32'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template MDC - CDP'
+                        key: rack.door.status
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: 43A047
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: E65660
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '1'
+                    - type: INTEGER
+                      name: units_bold
+                      value: '0'
+                    - type: INTEGER
+                      name: units_show
+                      value: '0'
+                    - type: INTEGER
+                      name: value_size
+                      value: '32'
+                - type: svggraph
+                  name: Temperature
+                  'y': '2'
+                  width: '30'
+                  height: '4'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: FFA059
+                    - type: INTEGER
+                      name: ds.0.fill
+                      value: '1'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: Temperature
+                    - type: INTEGER
+                      name: ds.0.transparency
+                      value: '0'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: XTVLN
+                    - type: INTEGER
+                      name: righty
+                      value: '0'
+                - type: item
+                  name: 'SNMP agent availability'
+                  x: '8'
+                  width: '9'
+                  fields:
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: INTEGER
+                      name: decimal_size
+                      value: '32'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template MDC - CDP'
+                        key: 'zabbix[host,snmp,available]'
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: E65660
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: 43A047
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '1'
+                    - type: STRING
+                      name: thresholds.2.color
+                      value: E97659
+                    - type: STRING
+                      name: thresholds.2.threshold
+                      value: '2'
+                    - type: INTEGER
+                      name: units_bold
+                      value: '0'
+                    - type: INTEGER
+                      name: units_show
+                      value: '0'
+                    - type: INTEGER
+                      name: value_size
+                      value: '32'
+                - type: item
+                  name: 'ICMP ping'
+                  x: '17'
+                  width: '9'
+                  fields:
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: INTEGER
+                      name: decimal_size
+                      value: '32'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template MDC - CDP'
+                        key: icmpping
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: E65660
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: 43A047
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '1'
+                    - type: INTEGER
+                      name: units_bold
+                      value: '0'
+                    - type: INTEGER
+                      name: units_show
+                      value: '0'
+                    - type: INTEGER
+                      name: value_size
+                      value: '32'
+                - type: item
+                  name: 'Main communication'
+                  x: '26'
+                  width: '9'
+                  fields:
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: INTEGER
+                      name: decimal_size
+                      value: '32'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template MDC - CDP'
+                        key: rack.main.communication
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: 43A047
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: E65660
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '1'
+                    - type: INTEGER
+                      name: units_bold
+                      value: '0'
+                    - type: INTEGER
+                      name: units_show
+                      value: '0'
+                    - type: INTEGER
+                      name: value_size
+                      value: '32'
+                - type: svggraph
+                  name: Humidity
+                  x: '30'
+                  'y': '2'
+                  width: '30'
+                  height: '4'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: FFA059
+                    - type: INTEGER
+                      name: ds.0.fill
+                      value: '1'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: Humidity
+                    - type: INTEGER
+                      name: ds.0.transparency
+                      value: '0'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: MSQFP
+                    - type: INTEGER
+                      name: righty
+                      value: '0'
+                - type: item
+                  name: 'MDC last seen in seconds'
+                  x: '35'
+                  width: '13'
+                  fields:
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: INTEGER
+                      name: decimal_size
+                      value: '32'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template MDC - CDP'
+                        key: proxy.last.seen
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: 2B2B2B
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: 2B2B2B
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '539'
+                    - type: STRING
+                      name: thresholds.2.color
+                      value: E65660
+                    - type: STRING
+                      name: thresholds.2.threshold
+                      value: '540'
+                    - type: INTEGER
+                      name: units_bold
+                      value: '0'
+                    - type: INTEGER
+                      name: units_show
+                      value: '0'
+                    - type: INTEGER
+                      name: value_size
+                      value: '32'
+                - type: problemsbysv
+                  name: Problems
+                  x: '48'
+                  width: '12'
+                  fields:
+                    - type: STRING
+                      name: reference
+                      value: JPEEE
+                    - type: INTEGER
+                      name: rf_rate
+                      value: '10'
+                    - type: INTEGER
+                      name: severities.0
+                      value: '2'
+                    - type: INTEGER
+                      name: severities.1
+                      value: '4'
+                    - type: INTEGER
+                      name: show_timeline
+                      value: '0'
+                - type: topitems
+                  name: Alarm
+                  x: '60'
+                  width: '12'
+                  height: '6'
+                  fields:
+                    - type: INTEGER
+                      name: columns.0.decimal_places
+                      value: '0'
+                    - type: STRING
+                      name: columns.0.items.0
+                      value: 'Temperature sensor status'
+                    - type: STRING
+                      name: columns.0.items.1
+                      value: 'Water detector status'
+                    - type: STRING
+                      name: columns.0.items.2
+                      value: 'Smoke detector status'
+                    - type: STRING
+                      name: columns.0.items.3
+                      value: 'Fire extinguisher operation'
+                    - type: STRING
+                      name: columns.0.items.4
+                      value: 'Fire extinguisher status'
+                    - type: STRING
+                      name: columns.0.items.5
+                      value: 'High temperature status'
+                    - type: INTEGER
+                      name: item_ordering_limit
+                      value: '19'
+                    - type: INTEGER
+                      name: item_ordering_order_by
+                      value: '2'
+                    - type: INTEGER
+                      name: layout
+                      value: '1'
+                    - type: INTEGER
+                      name: show_column_header
+                      value: '0'
+      valuemaps:
+        - uuid: 0c4e459406e94730afed3186a858fc02
+          name: proxy.last.seen
+          mappings:
+            - value: '-1'
+              newvalue: 'MDC never online'
+            - type: LESS_OR_EQUAL
+              value: '539'
+              newvalue: 'MDC recheable'
+            - type: GREATER_OR_EQUAL
+              value: '540'
+              newvalue: 'MDC unrecheable'
+        - uuid: d8189200edd04d06bdfc6ca8751f5887
+          name: rack.door.status
+          mappings:
+            - value: '0'
+              newvalue: Closed
+            - value: '1'
+              newvalue: Open
+        - uuid: e6ba55e33eda4d8b9e5ac00d7c6a43a8
+          name: rack.extinguisher
+          mappings:
+            - value: '0'
+              newvalue: Inactive
+            - value: '1'
+              newvalue: Active
+        - uuid: 95ef033becb34414b55610f29d01de4f
+          name: rack.extinguisher.operation
+          mappings:
+            - value: '0'
+              newvalue: Normal
+            - value: '1'
+              newvalue: Failure
+        - uuid: 466132fd14c34d0abbc1b847c117b384
+          name: rack.high.temperature.status
+          mappings:
+            - value: '0'
+              newvalue: Normal
+            - value: '1'
+              newvalue: Alarm
+        - uuid: 83ad5c7bd094410684e1eca4d0787a6d
+          name: rack.icmp.status
+          mappings:
+            - value: '0'
+              newvalue: Offline
+            - value: '1'
+              newvalue: Online
+        - uuid: 9e17361197574b2c8f723c88eea6a619
+          name: rack.main
+          mappings:
+            - value: '0'
+              newvalue: Normal
+            - value: '1'
+              newvalue: Error
+        - uuid: 95f99f423a4842ab9445b262198f2a8d
+          name: rack.smoke
+          mappings:
+            - value: '0'
+              newvalue: Inactive
+            - value: '1'
+              newvalue: Active
+        - uuid: 52598045eb58482f81ab051c8d8c24b9
+          name: rack.snmp.status
+          mappings:
+            - value: '0'
+              newvalue: Down
+            - value: '1'
+              newvalue: Available
+            - value: '2'
+              newvalue: Unknown
+        - uuid: b4af0ac50bd24fd7a9ead8c68d6586a2
+          name: rack.temperature.sensor
+          mappings:
+            - value: '0'
+              newvalue: Normal
+            - value: '1'
+              newvalue: Failure
+        - uuid: 5e4927a417f24905af9181aeb17ce4b0
+          name: rack.water
+          mappings:
+            - value: '0'
+              newvalue: Inactive
+            - value: '1'
+              newvalue: Active

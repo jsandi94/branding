@@ -1,0 +1,418 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: 47b5152d437b4cae851a91ca51ec26e9
+      name: Templates/CDP
+  templates:
+    - uuid: 873be8e098ec4cc7b36d2467a31f4aee
+      template: 'Template PDU - CDP'
+      name: 'Template PDU - CDP'
+      groups:
+        - name: Templates/CDP
+      items:
+        - uuid: 27888fb66ae143f986a7f5b303c308d4
+          name: Ping
+          type: SIMPLE
+          key: icmpping
+          valuemap:
+            name: pdu.icmp.status
+          tags:
+            - tag: component
+              value: pdu
+        - uuid: 94c00c8ed7154e3b8b52a31fd2053db3
+          name: Voltage
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.4.1.532.2.1.1.1.3.1
+          key: pdu.dev.voltage.1
+          history: 1d
+          value_type: FLOAT
+          trends: '0'
+          units: V
+          tags:
+            - tag: component
+              value: pdu
+        - uuid: 5688f1b9f90a43e2bd590e6d3e0bd6e3
+          name: Energy
+          type: DEPENDENT
+          key: pdu.energy.total
+          value_type: FLOAT
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var lines = value.split('\n');
+                  var sum = 0;
+                  for (var i = 0; i < lines.length; i++) {
+                      if (lines[i].indexOf('STRING:') !== -1) {
+                          var num = parseFloat(lines[i].split('STRING:')[1].replace(/"/g, '').trim());
+                          if (!isNaN(num)) {
+                              sum += num;
+                          }
+                      }
+                  }
+                  return Math.round(sum * 100) / 100;
+          master_item:
+            key: power.distribution.unit.dev.power.walk
+          tags:
+            - tag: component
+              value: pdu
+        - uuid: aaa09c15ed6947b787930509b3c6cb22
+          name: 'Power distribution unit dev power walk'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[.1.3.6.1.4.1.532.2.1.1.1.6]'
+          key: power.distribution.unit.dev.power.walk
+          delay: 10m
+          history: '0'
+          value_type: TEXT
+          tags:
+            - tag: component
+              value: raw
+        - uuid: b9c5a0f74d924801b37f61763e82e1ed
+          name: 'Power distribution unit outlet walk'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[.1.3.6.1.4.1.532.2.1.2.1.4,.1.3.6.1.4.1.532.2.1.2.1.5,.1.3.6.1.4.1.532.2.1.2.1.6]'
+          key: power.distribution.unit.outlet.walk
+          history: '0'
+          value_type: TEXT
+          tags:
+            - tag: component
+              value: raw
+        - uuid: 68c345ff9b8b49468f346b5800462146
+          name: 'SNMP agent availability'
+          type: INTERNAL
+          key: 'zabbix[host,snmp,available]'
+          valuemap:
+            name: pdu.snmp.status
+          tags:
+            - tag: component
+              value: pdu
+      discovery_rules:
+        - uuid: 3eac21bd28bc44999c13da3aa8143f40
+          name: 'Power distribution unit discovery'
+          type: DEPENDENT
+          key: power.distribution.unit.discovery
+          lifetime_type: DELETE_NEVER
+          enabled_lifetime_type: DISABLE_AFTER
+          enabled_lifetime: 24h
+          item_prototypes:
+            - uuid: 567424a1ea2f4007a2ee4dfe2691ca32
+              name: 'Out{#SNMPINDEX} current'
+              type: DEPENDENT
+              key: 'outlet.current.[{#SNMPINDEX}]'
+              value_type: FLOAT
+              preprocessing:
+                - type: SNMP_WALK_VALUE
+                  parameters:
+                    - '.1.3.6.1.4.1.532.2.1.2.1.6.{#SNMPINDEX}'
+                    - '0'
+              master_item:
+                key: power.distribution.unit.outlet.walk
+              tags:
+                - tag: outlet
+                  value: current
+              trigger_prototypes:
+                - uuid: 6d4571e95f9048f3a71af3c3d6f8b3bf
+                  expression: 'min(/Template PDU - CDP/outlet.current.[{#SNMPINDEX}],#2)>{$OUTLET_CURRENT_MAX}'
+                  name: 'High output current on out{#SNMPINDEX}'
+                  priority: HIGH
+            - uuid: c92040f238744a2abb5447c901b9498e
+              name: 'Out{#SNMPINDEX}'
+              type: DEPENDENT
+              key: 'outlet.status.[{#SNMPINDEX}]'
+              valuemap:
+                name: pdu.outlet.status
+              preprocessing:
+                - type: SNMP_WALK_VALUE
+                  parameters:
+                    - '.1.3.6.1.4.1.532.2.1.2.1.4.{#SNMPINDEX}'
+                    - '0'
+              master_item:
+                key: power.distribution.unit.outlet.walk
+              tags:
+                - tag: outlet
+                  value: status
+          trigger_prototypes:
+            - uuid: 4bf59200ab764893908a09b20250d864
+              expression: 'change(/Template PDU - CDP/outlet.status.[{#SNMPINDEX}])<>0 and last(/Template PDU - CDP/icmpping)=1'
+              name: 'Out{#SNMPINDEX} status changed {ITEM.VALUE}'
+              priority: INFO
+          master_item:
+            key: power.distribution.unit.outlet.walk
+          preprocessing:
+            - type: SNMP_WALK_TO_JSON
+              parameters:
+                - '{#OUT_NAME}'
+                - .1.3.6.1.4.1.532.2.1.2.1.5
+                - '0'
+      macros:
+        - macro: '{$OUTLET_CURRENT_MAX}'
+          value: '15'
+      dashboards:
+        - uuid: 7403be2e2b504485a40a1867bf1bc46a
+          name: Overview
+          display_period: '60'
+          auto_start: 'NO'
+          pages:
+            - widgets:
+                - type: honeycomb
+                  name: 'Outlet status'
+                  width: '72'
+                  fields:
+                    - type: STRING
+                      name: items.0
+                      value: 'Out*'
+                    - type: INTEGER
+                      name: item_tags.0.operator
+                      value: '0'
+                    - type: STRING
+                      name: item_tags.0.tag
+                      value: outlet
+                    - type: STRING
+                      name: item_tags.0.value
+                      value: status
+                    - type: STRING
+                      name: primary_label
+                      value: '{ITEM.NAME}'
+                    - type: STRING
+                      name: reference
+                      value: GPVQW
+                    - type: INTEGER
+                      name: secondary_label_decimal_places
+                      value: '0'
+                    - type: INTEGER
+                      name: secondary_label_units_show
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: E65660
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: 43A047
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '1'
+                - type: echarts
+                  name: 'Outlet current'
+                  'y': '2'
+                  width: '26'
+                  height: '8'
+                  fields:
+                    - type: INTEGER
+                      name: display_type
+                      value: '6'
+                    - type: STRING
+                      name: items.0
+                      value: 'Out* current'
+                    - type: INTEGER
+                      name: show_legend
+                      value: '0'
+                    - type: INTEGER
+                      name: smooth_lines
+                      value: '1'
+                    - type: STRING
+                      name: value_color
+                      value: 3949AB
+                - type: svggraph
+                  name: 'PDU voltage'
+                  x: '26'
+                  'y': '2'
+                  width: '30'
+                  height: '4'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: FFC859
+                    - type: INTEGER
+                      name: ds.0.fill
+                      value: '1'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: Voltage
+                    - type: INTEGER
+                      name: ds.0.transparency
+                      value: '0'
+                    - type: STRING
+                      name: lefty_min
+                      value: '0'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: EOPKS
+                    - type: INTEGER
+                      name: righty
+                      value: '0'
+                - type: svggraph
+                  name: 'PDU energy'
+                  x: '26'
+                  'y': '6'
+                  width: '46'
+                  height: '4'
+                  fields:
+                    - type: STRING
+                      name: ds.0.color
+                      value: 1F78B4
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: Energy
+                    - type: INTEGER
+                      name: ds.0.transparency
+                      value: '3'
+                    - type: INTEGER
+                      name: ds.0.type
+                      value: '3'
+                    - type: INTEGER
+                      name: legend_lines
+                      value: '2'
+                    - type: INTEGER
+                      name: legend_statistic
+                      value: '1'
+                    - type: STRING
+                      name: reference
+                      value: NXCFS
+                    - type: INTEGER
+                      name: righty
+                      value: '0'
+                - type: problemsbysv
+                  name: Problems
+                  x: '56'
+                  'y': '2'
+                  width: '16'
+                  fields:
+                    - type: STRING
+                      name: reference
+                      value: YCUGK
+                    - type: INTEGER
+                      name: rf_rate
+                      value: '10'
+                    - type: INTEGER
+                      name: severities.0
+                      value: '1'
+                    - type: INTEGER
+                      name: severities.1
+                      value: '2'
+                    - type: INTEGER
+                      name: severities.2
+                      value: '4'
+                    - type: INTEGER
+                      name: show_timeline
+                      value: '0'
+                - type: item
+                  name: 'SNMP agent'
+                  x: '56'
+                  'y': '4'
+                  width: '8'
+                  fields:
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: INTEGER
+                      name: decimal_size
+                      value: '32'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template PDU - CDP'
+                        key: 'zabbix[host,snmp,available]'
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: E65660
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: 43A047
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '1'
+                    - type: STRING
+                      name: thresholds.2.color
+                      value: E97659
+                    - type: STRING
+                      name: thresholds.2.threshold
+                      value: '2'
+                    - type: INTEGER
+                      name: units_bold
+                      value: '0'
+                    - type: INTEGER
+                      name: units_show
+                      value: '0'
+                    - type: INTEGER
+                      name: value_size
+                      value: '32'
+                - type: item
+                  name: 'ICMP ping'
+                  x: '64'
+                  'y': '4'
+                  width: '8'
+                  fields:
+                    - type: INTEGER
+                      name: decimal_places
+                      value: '0'
+                    - type: INTEGER
+                      name: decimal_size
+                      value: '32'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Template PDU - CDP'
+                        key: 'zabbix[host,snmp,available]'
+                    - type: INTEGER
+                      name: show.0
+                      value: '2'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: E65660
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: 43A047
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '1'
+                    - type: INTEGER
+                      name: units_bold
+                      value: '0'
+                    - type: INTEGER
+                      name: units_show
+                      value: '0'
+                    - type: INTEGER
+                      name: value_size
+                      value: '32'
+      valuemaps:
+        - uuid: 5db8a7a8973c427e85b62a209556181d
+          name: pdu.icmp.status
+          mappings:
+            - value: '0'
+              newvalue: Offline
+            - value: '1'
+              newvalue: Online
+        - uuid: eae2f4d9d36e418eb3eb818d827efda4
+          name: pdu.outlet.status
+          mappings:
+            - value: '0'
+              newvalue: 'OFF'
+            - value: '1'
+              newvalue: 'ON'
+        - uuid: 0b0ec3b875514c7cba7145547acfac68
+          name: pdu.snmp.status
+          mappings:
+            - value: '0'
+              newvalue: Down
+            - value: '1'
+              newvalue: Up
+            - value: '2'
+              newvalue: Unknown
